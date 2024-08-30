@@ -1,0 +1,71 @@
+ 
+# Install minikube on remote server with new user mkube
+
+---
+- name: Install Minikube on remote server
+  hosts: all
+  become: yes
+  vars:
+    mkube_user: mkube
+
+  tasks:
+    - name: Update apt repository and cache
+      apt:
+        update_cache: yes
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Create mkube user
+      user:
+        name: "{{ mkube_user }}"
+        shell: /bin/bash
+        create_home: yes
+        state: present
+
+    - name: Add mkube user to Docker group
+      user:
+        name: "{{ mkube_user }}"
+        groups: docker
+        append: yes
+
+    - name: Download Minikube binary
+      become_user: "{{ mkube_user }}"
+      get_url:
+        url: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        dest: /home/{{ mkube_user }}/minikube
+        mode: '0755'
+
+    - name: Move Minikube binary to /usr/local/bin
+      command: mv /home/{{ mkube_user }}/minikube /usr/local/bin/minikube
+
+    - name: Install kubectl
+      become_user: "{{ mkube_user }}"
+      get_url:
+        url: https://dl.k8s.io/release/$(curl -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+        dest: /home/{{ mkube_user }}/kubectl
+        mode: '0755'
+
+    - name: Move kubectl binary to /usr/local/bin
+      command: mv /home/{{ mkube_user }}/kubectl /usr/local/bin/kubectl
+
+    - name: Verify Minikube installation
+      command: minikube version
+      register: minikube_version
+      ignore_errors: yes
+
+    - name: Output Minikube version
+      debug:
+        msg: "{{ minikube_version.stdout }}"
+
